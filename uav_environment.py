@@ -1,6 +1,7 @@
 import functools
 import random
 from copy import copy
+import math
 
 import numpy as np
 from gymnasium.spaces import Discrete, MultiDiscrete
@@ -9,17 +10,27 @@ from pettingzoo.utils.env import ParallelEnv
 
 
 '''
+To implement:
+-Implement current GBS connection as part of observation, if now closer to a new GBS, give some reward (increases exploration of new GBS routes)
+-Implement is collarborating (could just be the difference between c after GBS connection and after UAV connection)
+give reward to GBS systems that collaborate (encourages collaboration)'''
+
+
+
+
+
+'''
 Simplifying Assumptions
 1. Height does not exist- all drones and GBS are considered to be at the same height
 2. Drones can collide, will set up maps so that optimal behavior would never include collisions, but I won't explicitly make it impossible in code
 '''
 
-class CustomEnvironment(ParallelEnv):
+class uav_collab(ParallelEnv):
     metadata = {
         "name": "custom_environment_v0",
     }
 
-    def __init__(self, g, L_s, L_f, o_max, V, R_G, R_U, grid_size):
+    def __init__(self, g, L_s, L_f, o_max, V, R_G, R_U, grid_size, trunc_step):
         '''
         input data is assumed to be in the format of array of tuples ie
         g = [ (x_1,y_1), (x_2,y_2)...]'''
@@ -37,6 +48,7 @@ class CustomEnvironment(ParallelEnv):
         self.possible_agents = ["uav_1", "uav_2"]
         self.ts = 0
         self.grid_size = grid_size  #takes a single number showing the size of one axis ie 20 would mean a 20*20 grid
+        self.trunc_step = trunc_step #step that you want the simulation to truncate and stop
 
 
 
@@ -48,6 +60,7 @@ class CustomEnvironment(ParallelEnv):
     '''
     below are helper functions I use
     '''
+
     def tu_form(self, arr):
         emp = arr[0]
         for ind in range(len(arr)):
@@ -91,7 +104,26 @@ class CustomEnvironment(ParallelEnv):
                 continue
 
 
+    def terminator(self):
+         for ind in range(len(self.U_t)):
+              if self.U_t[ind] != self.L_f:
+                   return False
+              
+         return True
+
+
     
+
+
+
+
+
+
+
+
+    '''
+    Essential functions of the gym env class
+    '''
 
     def reset(self):
         self.agents = copy(self.possible_agents)
@@ -109,17 +141,11 @@ class CustomEnvironment(ParallelEnv):
         return observations, {}
     
 
-
-    
-
-
-    
-
-
+   
 
     def step(self, actions):
         '''
-        this whole first part just makes it so that if it hits a wall it doesn't keep going, just nothing happens
+        if action would take UAV off of grid, nothing happens
         '''
         for ind in range(len(self.agents)):
             uav_action = actions[self.agents[ind]]
@@ -133,56 +159,59 @@ class CustomEnvironment(ParallelEnv):
             elif uav_action == 3 and self.U_t[ind][1] < self.grid_size:
                 self.U_t[ind][1] += 1
 
+
+             
+
         self.GBS_connect()
         self.UAV_connect()
 
-        #write a self.get_terminations, self.get_rewards, self.get_truncations
 
 
 
 
-
-
-        # Check termination conditions
-        terminations = {a: False for a in self.agents}
-        rewards = {a: 0 for a in self.agents}
-        if self.prisoner_x == self.guard_x and self.prisoner_y == self.guard_y:
-            rewards = {"prisoner": -1, "guard": 1}
-            terminations = {a: True for a in self.agents}
-
-        elif self.prisoner_x == self.escape_x and self.prisoner_y == self.escape_y:
-            rewards = {"prisoner": 1, "guard": -1}
-            terminations = {a: True for a in self.agents}
-
-        # Check truncation conditions (overwrites termination conditions)
+        infos = {a: {} for a in self.agents}
         truncations = {a: False for a in self.agents}
-        if self.timestep > (self.grid_size * 5):
-            rewards = {"prisoner": 0, "guard": 0}
-            truncations = {"prisoner": True, "guard": True}
-            self.agents = []
-        self.timestep += 1
-
-        # Get observations
-
+        terminations = {a: False for a in self.agents}
         observations = {
-            a: (
-                self.prisoner_x + 7 * self.prisoner_y,
-                self.guard_x + 7 * self.guard_y,
-                self.escape_x + 7 * self.escape_y,
-            )
+            a: self.tu_form(self.U_t) + self.tu_form(self.L_f) + self.tu_form(self.g)  + self.tu_form(self.c_U)
             for a in self.agents
         }
 
-        # Get dummy infos (not used in this example)
-        infos = {a: {} for a in self.agents}
+
+
+
+
+
+        j = self.terminator()
+        if j:
+             terminations = {a: True for a in self.agents}
+             rewards = {a: 100 for a in self.agents}
+             return observations, rewards, terminations, truncations, infos
+
+        
+        
+        if self.timestep > (self.grid_size * 10):
+            rewards = {a: 0 for a in self.agents}
+            truncations = {a: True for a in self.agents}
+            self.agents = []
+            return observations, rewards, terminations, truncations, infos
+            
+        
+        rewards = {}
+        for ind in range(len(self.agents)):
+             rewards[self.agents[ind]] = -1 + (-3 * self.c_U[ind])
+             
+             
+        self.timestep += 1
+
+        
 
         return observations, rewards, terminations, truncations, infos
 
     def render(self):
         grid = np.zeros((self.grid_size, self.grid_size))
-        grid[self.prisoner_y, self.prisoner_x] = "1"
-        grid[self.guard_y, self.guard_x] = "G"
-        grid[self.escape_y, self.escape_x] = "E"
+        for ind in range(len(self.possible_agents)):
+             grid[self.U_t[ind][0], self.U_t[ind][1]] = str(ind)
         print(f"{grid} \n")
 
     @functools.lru_cache(maxsize=None)
