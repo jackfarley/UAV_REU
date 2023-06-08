@@ -7,13 +7,16 @@ import numpy as np
 from gymnasium.spaces import Discrete, MultiDiscrete
 
 from pettingzoo.utils.env import ParallelEnv
+import pygame
 
 
 '''
 To implement:
 -Implement current GBS connection as part of observation, if now closer to a new GBS, give some reward (increases exploration of new GBS routes)
 -Implement is collarborating (could just be the difference between c after GBS connection and after UAV connection)
-give reward to GBS systems that collaborate (encourages collaboration)'''
+give reward to GBS systems that collaborate (encourages collaboration)
+- UAV can connect to a UAV that's connected to a UAV- sequential collaboration
+-Outage constraint'''
 
 
 
@@ -42,7 +45,7 @@ class uav_collab(ParallelEnv):
         self.o_max = o_max #max continous time disconnected
         self.U_t = L_s #Drone positions at time t
         self.V = V #max veloctiy
-        self.c_U = len(self.L_s * [1]) #boolean list of UAV connectedness
+        self.c_U = len(self.L_s) * [1] #boolean list of UAV connectedness
         self.R_G = R_G #radial GBS -> UAV
         self.R_U = R_U #Radial UAV -> UAV
         self.possible_agents = ["uav_1", "uav_2"]
@@ -72,7 +75,7 @@ class uav_collab(ParallelEnv):
 
         return emp
     
-    def dist(o_1, o_2):
+    def dist(self, o_1, o_2):
               '''
               o_1- object with x y coordinates in tuple
               returns distance between two objects'''
@@ -90,6 +93,10 @@ class uav_collab(ParallelEnv):
                 ind = ind + 1
 
     def UAV_connect(self):
+            '''
+            For sequential connections, add a while loop
+            take the diff each time, if nothing changes, or if they all equal 1, break the loop
+            yeah like take the diff and sum it, while diff > 0'''
             for ind in range(len(self.U_t)):
                 if self.c_U[ind] == 1:
                         continue
@@ -125,17 +132,17 @@ class uav_collab(ParallelEnv):
     Essential functions of the gym env class
     '''
 
-    def reset(self):
+    def reset(self, seed=0, options={"options": 1}):
         self.agents = copy(self.possible_agents)
         self.ts = 0
-        self.c_U = len(self.L_s * [1]) #boolean list of UAV connectedness
+        self.c_U = len(self.L_s) * [1] #boolean list of UAV connectedness
         self.U_t = self.L_s #Drone positions at time t
 
 
-
+        
 
         observations = {
-            a: self.tu_form(self.U_t) + self.tu_form(self.L_f) + self.tu_form(self.g)  + self.tu_form(self.c_U)
+            a: self.tu_form(self.U_t) + self.tu_form(self.L_f) + self.tu_form(self.g)  + tuple(self.c_U)
             for a in self.agents
         }
         return observations, {}
@@ -151,14 +158,21 @@ class uav_collab(ParallelEnv):
             uav_action = actions[self.agents[ind]]
 
             if uav_action == 0 and self.U_t[ind][0] > 0:
-                self.U_t[ind][0] -= 1
+                hold = list(self.U_t[ind])
+                hold[0] -= 1
+                self.U_t[ind] = tuple(hold)
             elif uav_action == 1 and self.U_t[ind][0] < self.grid_size:
-                self.U_t[ind][0] += 1
+                hold = list(self.U_t[ind])
+                hold[0] += 1
+                self.U_t[ind] = tuple(hold)
             elif uav_action == 2 and self.U_t[ind][1] > 0:
-                self.U_t[ind][1] -= 1
+                hold = list(self.U_t[ind])
+                hold[1] -= 1
+                self.U_t[ind] = tuple(hold)
             elif uav_action == 3 and self.U_t[ind][1] < self.grid_size:
-                self.U_t[ind][1] += 1
-
+                hold = list(self.U_t[ind])
+                hold[1] += 1
+                self.U_t[ind] = tuple(hold)
 
              
 
@@ -173,7 +187,7 @@ class uav_collab(ParallelEnv):
         truncations = {a: False for a in self.agents}
         terminations = {a: False for a in self.agents}
         observations = {
-            a: self.tu_form(self.U_t) + self.tu_form(self.L_f) + self.tu_form(self.g)  + self.tu_form(self.c_U)
+            a: self.tu_form(self.U_t) + self.tu_form(self.L_f) + self.tu_form(self.g)  + tuple(self.c_U)
             for a in self.agents
         }
 
@@ -190,7 +204,7 @@ class uav_collab(ParallelEnv):
 
         
         
-        if self.timestep > (self.grid_size * 10):
+        if self.ts > (self.grid_size * 10):
             rewards = {a: 0 for a in self.agents}
             truncations = {a: True for a in self.agents}
             self.agents = []
@@ -202,7 +216,7 @@ class uav_collab(ParallelEnv):
              rewards[self.agents[ind]] = -1 + (-3 * self.c_U[ind])
              
              
-        self.timestep += 1
+        self.ts += 1
 
         
 
@@ -212,12 +226,122 @@ class uav_collab(ParallelEnv):
         grid = np.zeros((self.grid_size, self.grid_size))
         for ind in range(len(self.possible_agents)):
              grid[self.U_t[ind][0], self.U_t[ind][1]] = str(ind)
+        # add gbs render- with radius
         print(f"{grid} \n")
 
     @functools.lru_cache(maxsize=None)
     def observation_space(self, agent):
-        return MultiDiscrete([self.gridsize] * 4 * len(self.U_t) + [self.gridsize]* 2 * len(self.g) + [2] * len(self.U_t))
+        return MultiDiscrete([self.grid_size] * 4 * len(self.U_t) + [self.grid_size]* 2 * len(self.g) + [2] * len(self.U_t))
 
     @functools.lru_cache(maxsize=None)
     def action_space(self, agent):
         return Discrete(4)
+    
+
+
+
+'''
+    #potential render function
+
+    def callRenderFunction(self):
+        # Define some colors
+        BLACK = (0, 0, 0)
+        WHITE = (255, 255, 255)
+        GREEN = (0, 255, 0)
+        RED = (255, 0, 0)
+        LightRED = (255, 187, 173)
+        PURPLE = (159,43,104)
+        YELLOW = (255,234,0)
+
+        # This sets the WIDTH and HEIGHT of each grid location
+        WIDTH = 20
+        HEIGHT = 20
+
+        # This sets the margin between each cell
+        MARGIN = 5
+
+        # Create a 2 dimensional array. A two dimensional
+        # array is simply a list of lists.
+        grid = []
+        for row in range(10):
+            # Add an empty array that will hold each cell
+            # in this row
+            grid.append([])
+            for column in range(10):
+                grid[row].append(0)  # Append a cell
+
+        # Set row 1, cell 5 to one. (Remember rows and
+        # column numbers start at zero.)
+
+        for row in range(10):
+            for column in range(10):
+                if in_range_of_static(row, column, AllGBSs):
+                    grid[row][column] = 3
+
+        for i in range(0, len(AllGBSs)):
+            grid[AllGBSs[i][0]][AllGBSs[i][1]] = 2
+
+        grid[UAV1_start[0]][UAV1_start[1]] = 4
+        grid[UAV1_end[0]][UAV1_end[1]] = 4
+        grid[UAV2_start[0]][UAV2_start[1]] = 5
+        grid[UAV2_end[0]][UAV2_end[1]] = 5
+
+        grid[self.state[0]][self.state[1]] = 1
+        grid[self.state[2]][self.state[3]] = 1
+
+
+
+        # Initialize pygame
+        pygame.init()
+
+        # Set the HEIGHT and WIDTH of the screen
+        WINDOW_SIZE = [255, 255]
+        screen = pygame.display.set_mode(WINDOW_SIZE)
+
+        # Set title of screen
+        pygame.display.set_caption("Array Backed Grid")
+
+        # Loop until the user clicks the close button.
+        done = False
+
+        # Used to manage how fast the screen updates
+        clock = pygame.time.Clock()
+
+        # -------- Main Program Loop -----------
+        ttime = 0
+        time = 200
+        while ttime < time:
+            ttime += 1
+            # Set the screen background
+            screen.fill(BLACK)
+
+            # Draw the grid
+            for row in range(10):
+                for column in range(10):
+                    color = WHITE
+                    if grid[row][column] == 1:
+                        color = GREEN
+                    if grid[row][column] == 2:
+                        color = RED
+                    if grid[row][column] == 3:
+                        color = LightRED
+                    if grid[row][column] == 4:
+                        color = PURPLE
+                    if grid[row][column] == 5:
+                        color = YELLOW
+                    pygame.draw.rect(screen,
+                                    color,
+                                    [(MARGIN + WIDTH) * column + MARGIN,
+                                    (MARGIN + HEIGHT) * row + MARGIN,
+                                    WIDTH,
+                                    HEIGHT])
+
+            # Limit to 60 frames per second
+            clock.tick(60)
+
+            # Go ahead and update the screen with what we've drawn.
+            pygame.display.flip()
+
+        pygame.quit()
+
+'''
