@@ -12,12 +12,15 @@ import pygame
 
 '''
 To implement:
--Implement current GBS connection as part of observation, if now closer to a new GBS, give some reward (increases exploration of new GBS routes)
--Implement is collarborating (could just be the difference between c after GBS connection and after UAV connection)
-give reward to GBS systems that collaborate (encourages collaboration)
-- UAV can connect to a UAV that's connected to a UAV- sequential collaboration (could use simple while loop and stop when no change)
-while np.sum(change) > 0
--Outage constraint'''
+-indices of which UAV's are collaborating'''
+
+
+
+'''
+The model 
+-I currently find the index of the closest gbs in the state function, but I don't use the information yet
+
+'''
 
 
 
@@ -53,6 +56,7 @@ class uav_collab(ParallelEnv):
         self.ts = 0
         self.grid_size = grid_size  #takes a single number showing the size of one axis ie 20 would mean a 20*20 grid
         self.trunc_step = trunc_step #step that you want the simulation to truncate and stop
+        #self.using_out = using_out
 
 
 
@@ -83,14 +87,24 @@ class uav_collab(ParallelEnv):
               return math.sqrt((o_1[0] - o_2[0])**2 + (o_1[1] - o_2[1])**2)
         
     def gbs_in_range(self, i):
-        min_dist = min(self.dist(i, j) for j in self.g)
-        return int(min_dist < self.R_G)
+        min_dist = float('inf')
+        closest_index = None
+        
+        for idx, j in enumerate(self.g):
+            distance = self.dist(i, j)
+            if distance < min_dist:
+                min_dist = distance
+                closest_index = idx
+        
+        is_within_range = int(min_dist < self.R_G)
+        return is_within_range, closest_index
+
 
         
     def GBS_connect(self):
             ind = 0
             for drone in self.U_t:
-                self.c_U[ind] = self.gbs_in_range(drone)
+                self.c_U[ind], _ = self.gbs_in_range(drone)
                 ind = ind + 1
 
     def UAV_connect(self):
@@ -178,7 +192,19 @@ class uav_collab(ParallelEnv):
              
 
         self.GBS_connect()
+        curr = np.array(self.c_U)
         self.UAV_connect()
+        delta = np.array(self.c_U)
+        chang = np.sum(delta - curr) 
+
+        '''simple np.where to check which indices involved in collaboration'''
+
+        while chang > 0:
+             curr = np.array(self.c_U)
+             self.UAV_connect
+             delta = np.array(self.c_U)
+             chang = np.sum(delta - curr)
+
 
 
 
@@ -205,7 +231,7 @@ class uav_collab(ParallelEnv):
 
         
         
-        if self.ts > (self.grid_size * 10):
+        if self.ts > self.trunc_step:
             rewards = {a: 0 for a in self.agents}
             truncations = {a: True for a in self.agents}
             self.agents = []

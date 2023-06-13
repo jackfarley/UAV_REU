@@ -47,9 +47,9 @@ def parse_args():
                         help="discount factor (gamma)")
     parser.add_argument("--batch_size", type=int, default=32,
                         help="batch size for training")
-    parser.add_argument("--max_cycles", type=int, default=125,
+    parser.add_argument("--max_cycles", type=int, default=1250,
                         help="maximum number of cycles per episode")
-    parser.add_argument("--total_episodes", type=int, default=2,
+    parser.add_argument("--total_episodes", type=int, default=50,
                         help="total number of episodes to run")
 
 
@@ -67,13 +67,13 @@ def parse_args():
                         help="outage constraint")
     parser.add_argument("--V", type=int, default=1,
                         help="max veloctiy")
-    parser.add_argument("--R_G", type=int, default=20,
+    parser.add_argument("--R_G", type=int, default=5,
                         help="Radius of connection from GBS-> UAV")
-    parser.add_argument("--R_U", type=int, default=5,
+    parser.add_argument("--R_U", type=int, default=3,
                         help="Radius of connection from UAV-> UAV")
     parser.add_argument("--grid_size", type=int, default=20,
                         help="length of each grid axis (gris is a square)")
-    parser.add_argument("--total_timesteps", type=int, default=50000,
+    parser.add_argument("--total_timesteps", type=int, default=1000,
         help="total timesteps of the experiments")
     
     
@@ -176,6 +176,8 @@ if __name__ == "__main__":
 
 
     '''episode storage'''
+    global_step = 0
+    start_time = time.time()
 
     end_step = 0
     total_episodic_return = 0
@@ -194,7 +196,7 @@ if __name__ == "__main__":
         # collect an episode
         with torch.no_grad():
             # collect observations and convert to batch of torch tensors
-            next_obs, info = env.reset(seed=None)
+            next_obs, info = env.reset(seed=0)
             # reset the episodic return
             total_episodic_return = 0
 
@@ -202,6 +204,8 @@ if __name__ == "__main__":
             for step in range(0, args.max_cycles):
                 # rollover the observation
                 obs = batchify(next_obs, device)
+                global_step += 1
+
 
                 # get action from the agent
                 actions, logprobs, _, values = agent.get_action_and_value(obs)
@@ -221,6 +225,7 @@ if __name__ == "__main__":
 
                 # compute episodic return
                 total_episodic_return += rb_rewards[step].cpu().numpy()
+
 
                 # if we reach termination or truncation, end
                 if any([terms[a] for a in terms]) or any([truncs[a] for a in truncs]):
@@ -311,15 +316,27 @@ if __name__ == "__main__":
         print(f"Training episode {episode}")
         print(f"Episodic Return: {np.mean(total_episodic_return)}")
         print(f"Episode Length: {end_step}")
-        print("")
-        print(f"Value Loss: {v_loss}")
-        print(f"Policy Loss: {pg_loss.item()}")
-        print(f"Old Approx KL: {old_approx_kl.item()}")
-        print(f"Approx KL: {approx_kl.item()}")
-        print(f"Clip Fraction: {np.mean(clip_fracs)}")
-        print(f"Explained Variance: {explained_var.item()}")
-        print("\n-------------------------------------------\n")
+        mter = np.mean(total_episodic_return)
+        # print("")
+        # print(f"Value Loss: {v_loss}")
+        # print(f"Policy Loss: {pg_loss.item()}")
+        # print(f"Old Approx KL: {old_approx_kl.item()}")
+        # print(f"Approx KL: {approx_kl.item()}")
+        # print(f"Clip Fraction: {np.mean(clip_fracs)}")
+        # print(f"Explained Variance: {explained_var.item()}")
+        # print("\n-------------------------------------------\n")
 
+        writer.add_scalar("charts/return", mter.item(), global_step)
+        writer.add_scalar("charts/learning_rate", optimizer.param_groups[0]["lr"], global_step)
+        writer.add_scalar("losses/value_loss", v_loss.item(), global_step)
+        writer.add_scalar("losses/policy_loss", pg_loss.item(), global_step)
+        writer.add_scalar("losses/entropy", entropy_loss.item(), global_step)
+        writer.add_scalar("losses/old_approx_kl", old_approx_kl.item(), global_step)
+        writer.add_scalar("losses/approx_kl", approx_kl.item(), global_step)
+        writer.add_scalar("losses/explained_variance", explained_var, global_step)
+        writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
+    env.close()
+    writer.close()
 
 
