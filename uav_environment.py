@@ -15,7 +15,8 @@ To implement:
 -Implement current GBS connection as part of observation, if now closer to a new GBS, give some reward (increases exploration of new GBS routes)
 -Implement is collarborating (could just be the difference between c after GBS connection and after UAV connection)
 give reward to GBS systems that collaborate (encourages collaboration)
-- UAV can connect to a UAV that's connected to a UAV- sequential collaboration
+- UAV can connect to a UAV that's connected to a UAV- sequential collaboration (could use simple while loop and stop when no change)
+while np.sum(change) > 0
 -Outage constraint'''
 
 
@@ -113,7 +114,7 @@ class uav_collab(ParallelEnv):
 
     def terminator(self):
          for ind in range(len(self.U_t)):
-              if self.U_t[ind] != self.L_f:
+              if self.U_t[ind] != self.L_f[ind]:
                    return False
               
          return True
