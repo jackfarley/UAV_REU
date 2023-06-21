@@ -4,7 +4,7 @@ import os
 import random
 import time
 from distutils.util import strtobool
-import uav_environment
+import uav_environment_single
 
 
 import gymnasium as gym
@@ -21,7 +21,7 @@ from torch.distributions.categorical import Categorical
 def parse_args():
     # fmt: off
     parser = argparse.ArgumentParser()
-    parser.add_argument("--exp-name", type=str, default="added_agent_index",
+    parser.add_argument("--exp-name", type=str, default="trying_with_one",
         help="the name of this experiment")
     parser.add_argument("--torch-deterministic", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="if toggled, `torch.backends.cudnn.deterministic=False`")
@@ -68,9 +68,9 @@ def parse_args():
     #Environment specific arguments
     parser.add_argument("--g", type=list, default=[(1, 3), (4, 5), (6, 5)],
                     help="list of gbs locations")
-    parser.add_argument("--L_s", type=list, default=[(1, 1), (4, 5)],
+    parser.add_argument("--L_s", type=list, default=[(1, 1)],
                         help="list of drone starting locations")
-    parser.add_argument("--L_f", type=list, default=[(19,3), (3,18)],
+    parser.add_argument("--L_f", type=list, default=[(19,10)],
                         help="list of drone end locations")
     parser.add_argument("--o_max", type=int, default=20,
                         help="outage constraint")
@@ -173,7 +173,7 @@ if __name__ == "__main__":
     )
 
 
-    env = uav_environment.uav_collab( args.g, args.L_s, args.L_f, args.o_max, args.V, args.R_G, args.R_U, args.grid_size, args.total_timesteps)
+    env = uav_environment_single.uav_collab( args.g, args.L_s, args.L_f, args.o_max, args.V, args.R_G, args.R_U, args.grid_size, args.total_timesteps)
     num_agents = len(env.possible_agents)
     num_actions = 5
     observation_size = env.observation_space(env.possible_agents[0]).shape

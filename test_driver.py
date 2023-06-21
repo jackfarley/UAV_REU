@@ -12,4 +12,11 @@ R_U = 5
 grid_size = 20
 trunc_step = 200
 env = uav_collab(g, L_s, L_f, o_max, V, R_G, R_U, grid_size, trunc_step)
-parallel_api_test(env, num_cycles=10_000_000)
+#parallel_api_test(env, num_cycles=10_000_000)
+
+q =env.dist(env.U_t[0], env.L_f[0])
+print(q)
+print(type(q))
+print(round(q))
+print(int(q))
+print(int(round(q)))

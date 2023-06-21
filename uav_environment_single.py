@@ -35,7 +35,7 @@ Simplifying Assumptions
 
 class uav_collab(ParallelEnv):
     metadata = {
-        "name": "uav_collaboration",
+        "name": "uav_single",
     }
 
     def __init__(self, g, L_s, L_f, o_max, V, R_G, R_U, grid_size, trunc_step):
@@ -53,7 +53,7 @@ class uav_collab(ParallelEnv):
         self.c_U = len(self.L_s) * [1] #boolean list of UAV connectedness
         self.R_G = R_G #radial GBS -> UAV
         self.R_U = R_U #Radial UAV -> UAV
-        self.possible_agents = ["uav_1", "uav_2"]
+        self.possible_agents = ["uav_1"]
         self.ts = 0
         self.grid_size = grid_size  #takes a single number showing the size of one axis ie 20 would mean a 20*20 grid
         self.trunc_step = trunc_step #step that you want the simulation to truncate and stop
@@ -216,7 +216,7 @@ class uav_collab(ParallelEnv):
                 hold[1] += 1
                 self.U_t[ind] = tuple(hold)
 
-             
+            
 
         self.GBS_connect()
         curr = np.array(self.c_U)

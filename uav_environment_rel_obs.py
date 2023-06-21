@@ -184,7 +184,7 @@ class uav_collab(ParallelEnv):
         
 
         observations = {
-            a: (self.agents.index(a),) + self.tu_form(self.U_t) + self.tu_form(self.L_f) + self.tu_form(self.g)  + tuple(self.c_U)
+            a: self.U_t[self.agents.index(a)] + self.L_f[self.agents.index(a)]
             for a in self.agents
         }
         return observations, {}
@@ -241,7 +241,7 @@ class uav_collab(ParallelEnv):
         truncations = {a: False for a in self.agents}
         terminations = {a: False for a in self.agents}
         observations = {
-            a: (self.agents.index(a),) + self.tu_form(self.U_t) + self.tu_form(self.L_f) + self.tu_form(self.g)  + tuple(self.c_U)
+            a: self.U_t[self.agents.index(a)] + self.L_f[self.agents.index(a)]
             for a in self.agents
         }
 
@@ -285,7 +285,7 @@ class uav_collab(ParallelEnv):
 
     @functools.lru_cache(maxsize=None)
     def observation_space(self, agent):
-        return MultiDiscrete([len(self.possible_agents)] + [self.grid_size] * 4 * len(self.U_t) + [self.grid_size]* 2 * len(self.g) + [2] * len(self.U_t))
+        return MultiDiscrete( [self.grid_size] * 4 )
 
     @functools.lru_cache(maxsize=None)
     def action_space(self, agent):

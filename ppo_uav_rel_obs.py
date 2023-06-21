@@ -4,7 +4,7 @@ import os
 import random
 import time
 from distutils.util import strtobool
-import uav_environment
+import uav_environment_rel_obs
 
 
 import gymnasium as gym
@@ -33,8 +33,7 @@ def parse_args():
         help="the wandb's project name")
     parser.add_argument("--save-model", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="whether to save model into the `runs/{run_name}` folder")
-    parser.add_argument("--decreasing_ent", default=False,
-        help="whether or not to decrease the entropy over time")
+    
     
 
     
@@ -56,8 +55,13 @@ def parse_args():
                         help="batch size for training")
     parser.add_argument("--max_cycles", type=int, default=400,
                         help="maximum number of cycles per episode")
-    parser.add_argument("--total_episodes", type=int, default=10000,
+    parser.add_argument("--total_episodes", type=int, default=1000,
                         help="total number of episodes to run")
+    parser.add_argument("--decreasing_ent", default=False,
+        help="whether or not to decrease the entropy over time")
+    parser.add_argument("--cut_ent", default=False,
+        help="whether or not to decrease the entropy over time")
+    
     
     
 
@@ -121,7 +125,7 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
 class Agent(nn.Module):
     def __init__(self, env):
         super().__init__()
-        self.obs_len = 1 + (5 * len(env.U_t)) + (2 * len(env.g)) 
+        self.obs_len = 4
         self.critic = nn.Sequential(
             layer_init(nn.Linear(self.obs_len, 64)),
             nn.ReLU(),
@@ -173,7 +177,7 @@ if __name__ == "__main__":
     )
 
 
-    env = uav_environment.uav_collab( args.g, args.L_s, args.L_f, args.o_max, args.V, args.R_G, args.R_U, args.grid_size, args.total_timesteps)
+    env = uav_environment_rel_obs.uav_collab( args.g, args.L_s, args.L_f, args.o_max, args.V, args.R_G, args.R_U, args.grid_size, args.total_timesteps)
     num_agents = len(env.possible_agents)
     num_actions = 5
     observation_size = env.observation_space(env.possible_agents[0]).shape
@@ -202,6 +206,8 @@ if __name__ == "__main__":
     """ TRAINING LOGIC """
     # train for n number of episodes
     ent_mat = np.linspace(args.ent_coef, 0, args.total_episodes)
+    cut = np.zeros(args.total_episodes)
+    cut[:round(args.total_episodes*.8)] = args.ent_coef
     for episode in range(args.total_episodes):
 
         '''
@@ -317,7 +323,10 @@ if __name__ == "__main__":
                 v_loss = 0.5 * v_loss_max.mean()
 
                 entropy_loss = entropy.mean()
-                if args.decreasing_ent:
+                if args.cut_ent:
+                    entc = cut[episode]
+
+                elif args.decreasing_ent:
                     entc = ent_mat[episode]
                 else:
                     entc = args.ent_coef

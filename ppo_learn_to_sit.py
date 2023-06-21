@@ -21,11 +21,11 @@ from torch.distributions.categorical import Categorical
 def parse_args():
     # fmt: off
     parser = argparse.ArgumentParser()
-    parser.add_argument("--exp-name", type=str, default="added_agent_index",
+    parser.add_argument("--exp-name", type=str, default="add_explore",
         help="the name of this experiment")
     parser.add_argument("--torch-deterministic", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="if toggled, `torch.backends.cudnn.deterministic=False`")
-    parser.add_argument("--cuda", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
+    parser.add_argument("--cuda", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="if toggled, cuda will be enabled by default")
     parser.add_argument("--track", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="if toggled, this experiment will be tracked with Weights and Biases")
@@ -33,20 +33,15 @@ def parse_args():
         help="the wandb's project name")
     parser.add_argument("--save-model", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="whether to save model into the `runs/{run_name}` folder")
-    parser.add_argument("--decreasing_ent", default=False,
-        help="whether or not to decrease the entropy over time")
-    
-
-    
     
 
 
     #algorithm specific arguments
-    parser.add_argument("--ent_coef", type=float, default=.01,
+    parser.add_argument("--ent_coef", type=float, default=.1,
                     help="coefficient for entropy loss")
-    parser.add_argument("--vf_coef", type=float, default=0.5,
+    parser.add_argument("--vf_coef", type=float, default=0.1,
                         help="coefficient for value function loss")
-    parser.add_argument("--clip_coef", type=float, default=0.2,
+    parser.add_argument("--clip_coef", type=float, default=0.1,
                         help="coefficient for clip loss")
     parser.add_argument("--gamma", type=float, default=0.99,
                         help="discount factor (gamma)")
@@ -56,7 +51,7 @@ def parse_args():
                         help="batch size for training")
     parser.add_argument("--max_cycles", type=int, default=400,
                         help="maximum number of cycles per episode")
-    parser.add_argument("--total_episodes", type=int, default=10000,
+    parser.add_argument("--total_episodes", type=int, default=10,
                         help="total number of episodes to run")
     
     
@@ -70,7 +65,7 @@ def parse_args():
                     help="list of gbs locations")
     parser.add_argument("--L_s", type=list, default=[(1, 1), (4, 5)],
                         help="list of drone starting locations")
-    parser.add_argument("--L_f", type=list, default=[(19,3), (3,18)],
+    parser.add_argument("--L_f", type=list, default=[(2, 4), (7, 10)],
                         help="list of drone end locations")
     parser.add_argument("--o_max", type=int, default=20,
                         help="outage constraint")
@@ -82,10 +77,9 @@ def parse_args():
                         help="Radius of connection from UAV-> UAV")
     parser.add_argument("--grid_size", type=int, default=20,
                         help="length of each grid axis (gris is a square)")
-    parser.add_argument("--total_timesteps", type=int, default=50,
+    parser.add_argument("--total_timesteps", type=int, default=350,
         help="total timesteps of the experiments")
-    parser.add_argument("--act_len", default=5,
-        help="whether or not to decrease the entropy over time")
+    
     
     args = parser.parse_args()
     return args
@@ -121,7 +115,8 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
 class Agent(nn.Module):
     def __init__(self, env):
         super().__init__()
-        self.obs_len = 1 + (5 * len(env.U_t)) + (2 * len(env.g)) 
+        self.obs_len = (5 * len(env.U_t)) + (2 * len(env.g)) 
+        self.act_len = 4
         self.critic = nn.Sequential(
             layer_init(nn.Linear(self.obs_len, 64)),
             nn.ReLU(),
@@ -134,7 +129,7 @@ class Agent(nn.Module):
             nn.ReLU(),
             layer_init(nn.Linear(64, 64)),
             nn.ReLU(),
-            layer_init(nn.Linear(64, args.act_len), std=0.01),
+            layer_init(nn.Linear(64, self.act_len), std=0.01),
         )
 
 
@@ -152,7 +147,7 @@ class Agent(nn.Module):
 
 if __name__ == "__main__":
     args = parse_args()
-    device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     #setting up tracking progress
     run_name = f"{args.exp_name}__{int(time.time())}"
@@ -175,7 +170,7 @@ if __name__ == "__main__":
 
     env = uav_environment.uav_collab( args.g, args.L_s, args.L_f, args.o_max, args.V, args.R_G, args.R_U, args.grid_size, args.total_timesteps)
     num_agents = len(env.possible_agents)
-    num_actions = 5
+    num_actions = 4
     observation_size = env.observation_space(env.possible_agents[0]).shape
 
 
@@ -201,7 +196,6 @@ if __name__ == "__main__":
 
     """ TRAINING LOGIC """
     # train for n number of episodes
-    ent_mat = np.linspace(args.ent_coef, 0, args.total_episodes)
     for episode in range(args.total_episodes):
 
         '''
@@ -317,11 +311,7 @@ if __name__ == "__main__":
                 v_loss = 0.5 * v_loss_max.mean()
 
                 entropy_loss = entropy.mean()
-                if args.decreasing_ent:
-                    entc = ent_mat[episode]
-                else:
-                    entc = args.ent_coef
-                loss = pg_loss - entc * entropy_loss + v_loss * args.vf_coef
+                loss = pg_loss - args.ent_coef * entropy_loss + v_loss * args.vf_coef
 
                 optimizer.zero_grad()
                 loss.backward()
