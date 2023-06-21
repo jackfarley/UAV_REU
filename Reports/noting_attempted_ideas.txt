@@ -1,0 +1,84 @@
+Progress/ Experiment Journal-
+
+6/20- 
+1. Tried simple -1 per time step reward, -3 for not connected,
++100 for both reach end
+
+Algorithm quickly learns just to stand still.
+
+It seems end conditions is rare enough event that we
+may need to either increase the episode length,
+or change something of that nature to make it more breadcrumby
+
+2. Tried simple
+-1 per time step, -dist from current location to end location
+with +100 if both hit
+
+Haven't yet rendered but it appears that they both approach
+some reasonable radius around the finish cites
+
+3.
+Added a fifth action (standing still)
+and added reward for one drone getting to location
+
+Also added a function that progressively decreases entropy 
+as training continues,
+since agents still seem to act quite randomly
+
+will maybe need to modify that in some way
+
+both 2. and 3 were unnsuccesfull, because the agent wasn't restarting it's position it was just getting stuck in a position
+
+
+With bug fixed, 3 seems to be a relatively okay
+path finding algorithm
+
+REally cool!!!
+
+runs at 
+https://wandb.ai/uav-rl/cleanRL?workspace=user-jack-farley
+
+
+
+
+6/21-
+
+Observing Agent behaviors, both agents behave identically
+
+this is of course intractable and I think the fundamental issue
+Fundamental issue- 
+We're training a single network, how does that compute multiple things
+
+Like with no hidden information
+
+I guess we'll have to see a way to get observations to
+be different I think?
+
+1.
+Got answer from Dev on the Farama team.
+You can simply append the index of the agent onto the observation
+Which can allow different policies for different agents
+
+
+
+So that answer didn't really change much
+
+I think learning that dependency is maybe hard
+
+2.
+Tried on single agent, works reasonably well,
+if we decrease entropy results are good, agent learns to
+
+
+Now works with both agents, where the observation is simply the current
+location of the specific drone and also it's intended end point
+
+also using distance as a helper yeah
+
+
+3.
+Seeing the value of building this iteratively
+
+building an framework and training a model that 
+understands two agents with outage constraints could be
+the goal tomorrow pog
