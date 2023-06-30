@@ -7,7 +7,7 @@ COLOR_NUMBERS_TWO = 'b';
 CIRCLE_RADIUS = 0.5;
 hold on
 grid on
-xlabel('o_{max} = 4', 'FontSize',14)
+xlabel('o_{max} = 5', 'FontSize',14)
 ylabel('Y coordinate','FontSize',14)
 circle(20,20,0)
 circle(0,0,0)
