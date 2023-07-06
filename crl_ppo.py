@@ -218,6 +218,7 @@ if __name__ == "__main__":
                 
                     nextvalues = next_value
                 else:
+
                     nextnonterminal = 1.0 - dones[t + 1]
                     nextvalues = values[t + 1]
                 delta = rewards[t] + args.gamma * nextvalues * nextnonterminal - values[t]

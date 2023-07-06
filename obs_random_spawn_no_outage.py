@@ -51,7 +51,7 @@ class uav_collab(ParallelEnv):
 
         self.g = g #gbs locations in an array of tuples
         self.L_s = L_s #UAV start points
-        self.L_f = L_f #UAV end points
+        self.L_f = L_f#UAV end points
         self.o_max = o_max #max continous time disconnected
         self.U_t = deepcopy(self.L_s) #Drone positions at time t
         self.V = V #max veloctiy
@@ -242,9 +242,19 @@ class uav_collab(ParallelEnv):
 
 
         # non-random self.U_t = deepcopy(self.L_s) #Drone positions at time t
-        gb = random.randint(0, len(self.g)-2) #fix to -1, I'm just kind of cheating here
-        self.U_t = [deepcopy(self.g[gb]),]
+        #gb = random.randint(0, len(self.g)-2) #fix to -1, I'm just kind of cheating here
+        #self.U_t = [deepcopy(self.g[gb]),]
         #print(self.U_t)
+
+        #make thing happen in random corner of the map, so in the outer 5 places 
+
+
+        for i in range(len(self.L_s)):
+             self.U_t[i] = (random.randint(*random.choice([(0, 5), (15, 20)])), random.randint(*random.choice([(0, 5), (15, 20)])))
+
+
+        for i in range(len(self.L_s)):
+             self.L_f[i] = (20 - self.U_t[i][0], 20 - self.U_t[i][1])
         
         self.c_cont = copy(self.c_U)
         self.has_ended = False
@@ -263,7 +273,7 @@ class uav_collab(ParallelEnv):
         
 
         observations = {
-            a:  self.U_t[self.agents.index(a)]
+            a:  self.U_t[self.agents.index(a)] + self.L_f[self.agents.index(a)]
             for a in self.agents
         }
         return observations, {}
@@ -334,7 +344,7 @@ class uav_collab(ParallelEnv):
         truncations = {a: False for a in self.agents}
         terminations = {a: False for a in self.agents}
         observations = {
-            a: self.U_t[self.agents.index(a)]
+            a: self.U_t[self.agents.index(a)] + self.L_f[self.agents.index(a)]
             for a in self.agents
         }
 
@@ -363,8 +373,9 @@ class uav_collab(ParallelEnv):
         
         rewards = {}
         for ind in range(len(self.agents)):
-             rewards[self.agents[ind]] = 2*d_dis[ind] + 4*cont_r[ind]  -1 # gbs_new[ind] #  pscp -r C:\Users\JackF\Documents\REU\uav_environment\env\ farleyj3@tesla.cs.vcu.edu:/home/farleyj3/rl -.1*(self.dist(self.U_t[ind], self.L_f[ind]))  (-3 * self.c_U[ind]) #self.dist(self.U_t[ind], self.L_s[ind]) #(0 * self.c_U[ind])   
+             rewards[self.agents[ind]] = 5*d_dis[ind] - 1#+ 4*cont_r[ind]  -1 # gbs_new[ind] #  pscp -r C:\Users\JackF\Documents\REU\uav_environment\env\ farleyj3@tesla.cs.vcu.edu:/home/farleyj3/rl -.1*(self.dist(self.U_t[ind], self.L_f[ind]))  (-3 * self.c_U[ind]) #self.dist(self.U_t[ind], self.L_s[ind]) #(0 * self.c_U[ind])   
         self.ts += 1
+        print(observations)
         print(self.U_t)
         #print(d_dis[0])
         #print(cont_r[0])
@@ -383,7 +394,7 @@ class uav_collab(ParallelEnv):
 
     @functools.lru_cache(maxsize=None)
     def observation_space(self, agent):
-        return MultiDiscrete( [self.grid_size] * 2)
+        return MultiDiscrete( [self.grid_size] * 4)
 
     @functools.lru_cache(maxsize=None)
     def action_space(self, agent):

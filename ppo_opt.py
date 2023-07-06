@@ -18,7 +18,6 @@ import torch.nn.functional as F
 import torch.optim as optim
 from stable_baselines3.common.buffers import ReplayBuffer
 from torch.utils.tensorboard import SummaryWriter
-from torch.distributions.categorical import Categorical
 
 '''
 1. Unique observations are essential
@@ -26,7 +25,7 @@ from torch.distributions.categorical import Categorical
 
 
 def parse_args():
-    # fmt: off
+    # system arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--exp-name", type=str, default="Outage Lower Obs attempt",
         help="the name of this experiment")
@@ -36,54 +35,45 @@ def parse_args():
         help="if toggled, cuda will be enabled by default")
     parser.add_argument("--track", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="if toggled, this experiment will be tracked with Weights and Biases")
-    parser.add_argument("--wandb-project-name", type=str, default="cleanRL",
+    parser.add_argument("--wandb-project-name", type=str, default="DQN",
         help="the wandb's project name")
     parser.add_argument("--save_model", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="whether to save model into the `runs/{run_name}` folder")
     
     
 
-    
-    
-
 
     #algorithm specific arguments
-    parser.add_argument("--ent_coef", type=float, default=.00
-                        ,
-                    help="coefficient for entropy loss")
-    parser.add_argument("--vf_coef", type=float, default=0.5,
-                        help="coefficient for value function loss")
-    parser.add_argument("--clip_coef", type=float, default=0.2,
-                        help="coefficient for clip loss")
-    parser.add_argument("--gamma", type=float, default=0.999,
-                        help="discount factor (gamma)")
-    parser.add_argument("--gae_lambda", type=float, default=0.95,
-        help="the lambda for the general advantage estimation")
-    parser.add_argument("--learning_rate", type=float, default=.00025,
-                        help="learning rate")
-    #parser.add_argument("--batch_size", type=int, default=32,
-    #                    help="batch size for training")
-    parser.add_argument("--max_cycles", type=int, default=400,
-                        help="maximum number of cycles per episode")
-    parser.add_argument("--total_episodes", type=int, default=1000,
-                        help="total number of episodes to run")
-    parser.add_argument("--decreasing_ent", default=False,
-        help="whether or not to decrease the entropy over time")
-    parser.add_argument("--cut_ent", default=False,
-        help="whether or not to cut the entropy")
-    parser.add_argument("--runs_per_batch", default=10,
-        help="whether or not to cut the entropy")
-    
-    
-    
-    
-    
+    parser.add_argument("--total-timesteps", type=int, default=500000,
+        help="total timesteps of the experiments")
+    parser.add_argument("--learning-rate", type=float, default=2.5e-4,
+        help="the learning rate of the optimizer")
+    parser.add_argument("--num-envs", type=int, default=1,
+        help="the number of parallel game environments")
+    parser.add_argument("--buffer-size", type=int, default=10000,
+        help="the replay memory buffer size")
+    parser.add_argument("--gamma", type=float, default=0.99,
+        help="the discount factor gamma")
+    parser.add_argument("--tau", type=float, default=1.,
+        help="the target network update rate")
+    parser.add_argument("--target-network-frequency", type=int, default=500,
+        help="the timesteps it takes to update the target network")
+    parser.add_argument("--batch-size", type=int, default=128,
+        help="the batch size of sample from the reply memory")
+    parser.add_argument("--start-e", type=float, default=1,
+        help="the starting epsilon for exploration")
+    parser.add_argument("--end-e", type=float, default=0.05,
+        help="the ending epsilon for exploration")
+    parser.add_argument("--exploration-fraction", type=float, default=0.5,
+        help="the fraction of `total-timesteps` it takes from start-e to go end-e")
+    parser.add_argument("--learning-starts", type=int, default=10000,
+        help="timestep to start learning")
+    parser.add_argument("--train-frequency", type=int, default=10,
+        help="the frequency of training")
 
 
-    
 
-
-    #Environment specific arguments
+    #Environment arguments
     parser.add_argument("--g", type=list, default=[ (0,0), (5,5), (10,10), (15,5), (20,1)],
                     help="list of gbs locations")
     parser.add_argument("--L_s", type=list, default=[(1,1)],
@@ -113,8 +103,6 @@ def parse_args():
 
     
 
-
-
 #helper functions
 def batchify(x, device):
     """Converts petting zoo style returns to batch of torch arrays."""
@@ -134,45 +122,31 @@ def unbatchify(x, env):
     return x
 
 
-def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
-    torch.nn.init.orthogonal_(layer.weight, std)
-    torch.nn.init.constant_(layer.bias, bias_const)
-    return layer
-
-class Agent(nn.Module):
+class QNetwork(nn.Module):
     def __init__(self, env):
         super().__init__()
         self.obs_len = 2 
-        network_size = 64
-        self.critic = nn.Sequential(
-            layer_init(nn.Linear(np.array(self.obs_len,), network_size)),
-            nn.Tanh(),
-            layer_init(nn.Linear(network_size, network_size)),
-            nn.Tanh(),
-            layer_init(nn.Linear(network_size, 1), std=1.0),
-        )
-        self.actor = nn.Sequential(
-            layer_init(nn.Linear(np.array(self.obs_len,), network_size)),
-            nn.Tanh(),
-            layer_init(nn.Linear(network_size, network_size)),
-            nn.Tanh(),
-            layer_init(nn.Linear(network_size, args.act_len), std=0.01),
+        network_size_1 = 120
+        network_size_2 = 84
+        self.network = nn.Sequential(
+            nn.Linear(np.array(self.obs_len,), network_size_1),
+            nn.ReLU(),
+            nn.Linear(network_size_1, network_size_2),
+            nn.ReLU(),
+            nn.Linear(network_size_2, args.act_len),
         )
 
-
-    def get_value(self, x):
-            return self.critic(x)
-
-    def get_action_and_value(self, x, action=None):
-        logits = self.actor(x)
-        probs = Categorical(logits=logits)
-        if action is None:
-            action = probs.sample()
-        return action, probs.log_prob(action), probs.entropy(), self.critic(x)
+    def forward(self, x):
+            return self.network(x)
+    
+    def linear_schedule(start_e: float, end_e: float, duration: int, t: int):
+        slope = (end_e - start_e) / duration
+        return max(slope * t + start_e, end_e)
 
 
 
 if __name__ == "__main__":
+
 
     tes = np.array([1,2])
     args = parse_args()
@@ -199,10 +173,15 @@ if __name__ == "__main__":
 
 
     env = obs_random_spawn.uav_collab( args.g, args.L_s, args.L_f, args.o_max, args.V, args.R_G, args.R_U, args.grid_size, args.total_timesteps)
-    num_agents = len(env.possible_agents)
-    args.batch_size = int(num_agents * args.total_timesteps*args.runs_per_batch)
-    num_actions = 5
-    observation_size = env.observation_space(env.possible_agents[0]).shape
+    num_agents = 1
+    num_actions = args.act_len
+
+
+
+    q_network = QNetwork(env).to(device)
+    optimizer = optim.Adam(q_network.parameters(), lr=args.learning_rate)
+    target_network = QNetwork(env).to(device)
+    target_network.load_state_dict(q_network.state_dict())
 
 
     '''settting up learning'''

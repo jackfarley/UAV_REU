@@ -350,7 +350,7 @@ class uav_collab(ParallelEnv):
         j = self.mild_terminator(self.R_G)
         if j:
              terminations = {a: True for a in self.agents}
-             rewards = {a:  25 for a in self.agents}
+             rewards = {a:  100 for a in self.agents}
              return observations, rewards, terminations, truncations, infos
 
 
@@ -363,12 +363,9 @@ class uav_collab(ParallelEnv):
         
         rewards = {}
         for ind in range(len(self.agents)):
-             rewards[self.agents[ind]] = 2*d_dis[ind] + 4*cont_r[ind]  -1 # gbs_new[ind] #  pscp -r C:\Users\JackF\Documents\REU\uav_environment\env\ farleyj3@tesla.cs.vcu.edu:/home/farleyj3/rl -.1*(self.dist(self.U_t[ind], self.L_f[ind]))  (-3 * self.c_U[ind]) #self.dist(self.U_t[ind], self.L_s[ind]) #(0 * self.c_U[ind])   
+             rewards[self.agents[ind]] = 4*d_dis[ind] + 35*cont_r[ind]  -1 # gbs_new[ind] #  pscp -r C:\Users\JackF\Documents\REU\uav_environment\env\ farleyj3@tesla.cs.vcu.edu:/home/farleyj3/rl -.1*(self.dist(self.U_t[ind], self.L_f[ind]))  (-3 * self.c_U[ind]) #self.dist(self.U_t[ind], self.L_s[ind]) #(0 * self.c_U[ind])   
         self.ts += 1
         print(self.U_t)
-        #print(d_dis[0])
-        #print(cont_r[0])
-
 
 
         
