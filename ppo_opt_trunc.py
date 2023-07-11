@@ -4,7 +4,7 @@ import os
 import random
 import time
 from distutils.util import strtobool
-import obs_random_spawn_no_outage
+import obs_gbs_spawn_trunc_outage
 
 
 from copy import copy, deepcopy
@@ -19,6 +19,7 @@ import torch.optim as optim
 from stable_baselines3.common.buffers import ReplayBuffer
 from torch.utils.tensorboard import SummaryWriter
 from torch.distributions.categorical import Categorical
+import math
 
 '''
 1. Unique observations are essential
@@ -28,7 +29,7 @@ from torch.distributions.categorical import Categorical
 def parse_args():
     # system arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("--exp-name", type=str, default="Simple_Distance",
+    parser.add_argument("--exp-name", type=str, default="Higher_ent",
         help="the name of this experiment")
     parser.add_argument("--torch-deterministic", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="if toggled, `torch.backends.cudnn.deterministic=False`")
@@ -36,7 +37,7 @@ def parse_args():
         help="if toggled, cuda will be enabled by default")
     parser.add_argument("--track", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="if toggled, this experiment will be tracked with Weights and Biases")
-    parser.add_argument("--wandb-project-name", type=str, default="PPO_simple_distance",
+    parser.add_argument("--wandb-project-name", type=str, default="PPO_trunc_outage",
         help="the wandb's project name")
     parser.add_argument("--save_model", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="whether to save model into the `runs/{run_name}` folder")
@@ -44,7 +45,7 @@ def parse_args():
     
 
     #algorithm specific arguments
-    parser.add_argument("--ent_coef", type=float, default=.01
+    parser.add_argument("--ent_coef", type=float, default=.1
                         ,
                     help="coefficient for entropy loss")
     parser.add_argument("--vf_coef", type=float, default=0.5,
@@ -57,15 +58,18 @@ def parse_args():
                         help="learning rate")
     parser.add_argument("--batch_size", type=int, default=32,
                         help="batch size for training")
-    parser.add_argument("--max_cycles", type=int, default=50,
+    parser.add_argument("--max_cycles", type=int, default=1000,
                         help="maximum number of cycles per episode")
-    parser.add_argument("--total_episodes", type=int, default=3000,
+    parser.add_argument("--total_episodes", type=int, default=50000,
                         help="total number of episodes to run")
     parser.add_argument("--decreasing_ent", default=False,
         help="whether or not to decrease the entropy over time")
+    parser.add_argument("--d_ent_cut", default=True,
+        help="whether or not to decrease the entropy after a certain time step")
+    
     parser.add_argument("--cut_ent", default=False,
         help="whether or not to decrease the entropy over time")
-    parser.add_argument("--runs_per_batch", type=int, default=10,
+    parser.add_argument("--runs_per_batch", type=int, default=1,
                         help="maximum number of cycles per episode")
     parser.add_argument("--gae-lambda", type=float, default=0.95,
         help="the lambda for the general advantage estimation")
@@ -78,7 +82,7 @@ def parse_args():
                         help="list of drone starting locations")
     parser.add_argument("--L_f", type=list, default=[(20,1)],
                         help="list of drone end locations")
-    parser.add_argument("--o_max", type=int, default=0,
+    parser.add_argument("--o_max", type=int, default=2,
                         help="outage constraint")
     parser.add_argument("--V", type=int, default=1,
                         help="max veloctiy")
@@ -88,12 +92,10 @@ def parse_args():
                         help="Radius of connection from UAV-> UAV")
     parser.add_argument("--grid_size", type=int, default=20,
                         help="length of each grid axis (gris is a square)")
-    parser.add_argument("--total_timesteps", type=int, default=40,
+    parser.add_argument("--total_timesteps", type=int, default=75,
         help="total timesteps of the experiments")
     parser.add_argument("--act_len", type=int, default=5,
         help="length of actions")
-    parser.add_argument("--obser", type=int, default=4,
-                        help='kj;lasdkjf')
     
     
     args = parser.parse_args()
@@ -127,7 +129,7 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
 class Agent(nn.Module):
     def __init__(self, env):
         super().__init__()
-        self.obs_len = 4  
+        self.obs_len = 3 
         network_size = 128
         self.critic = nn.Sequential(
             layer_init(nn.Linear(self.obs_len, network_size)),
@@ -160,7 +162,7 @@ class Agent(nn.Module):
 if __name__ == "__main__":
 
 
-    tes = np.array([1,2,3,4])
+    tes = np.array([1,2,3])
     args = parse_args()
     
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
@@ -184,7 +186,7 @@ if __name__ == "__main__":
     )
 
 
-    env = obs_random_spawn_no_outage.uav_collab( args.g, args.L_s, args.L_f, args.o_max, args.V, args.R_G, args.R_U, args.grid_size, args.total_timesteps)
+    env = obs_gbs_spawn_trunc_outage.uav_collab( args.g, args.L_s, args.L_f, args.o_max, args.V, args.R_G, args.R_U, args.grid_size, args.total_timesteps)
     num_agents = 1
     num_actions = args.act_len
 
@@ -223,6 +225,10 @@ if __name__ == "__main__":
     ent_mat = np.linspace(args.ent_coef, 0, args.total_episodes)
     cut = np.zeros(args.total_episodes)
     cut[:round(args.total_episodes*.8)] = args.ent_coef
+    d_crease = np.linspace(args.ent_coef, 0, math.ceil(args.total_episodes*.6))
+    d_thresh = np.zeros(args.total_episodes)
+    d_thresh[:] = args.ent_coef
+    d_thresh[:math.ceil(args.total_episodes*.6)] = d_crease
  
     for episode in range(args.total_episodes):
         end_list = np.zeros(args.runs_per_batch)
@@ -434,7 +440,7 @@ if __name__ == "__main__":
         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
         
 
-        if episode%100 == 0:
+        if episode%10000 == 0:
 
             if args.save_model :
 

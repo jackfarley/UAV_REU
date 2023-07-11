@@ -203,7 +203,7 @@ class uav_collab(ParallelEnv):
             if ran == 1:                    
                 if gbs not in self.GBS_seen[str(i)]:
                     self.GBS_seen[str(i)].append(gbs)
-                    curr_gbs_r = 50
+                    curr_gbs_r = 1
             new_gbs_r.append(curr_gbs_r)
         return new_gbs_r
     
@@ -241,22 +241,22 @@ class uav_collab(ParallelEnv):
 
 
 
-        # non-random self.U_t = deepcopy(self.L_s) #Drone positions at time t
-        #gb = random.randint(0, len(self.g)-2) #fix to -1, I'm just kind of cheating here
-        #self.U_t = [deepcopy(self.g[gb]),]
+        #self.U_t = deepcopy(self.L_s) #Drone positions at time t
+        gb = random.randint(0, len(self.g)-2) #fix to -1, I'm just kind of cheating here
+        self.U_t = [deepcopy(self.g[gb]),]
         #print(self.U_t)
 
         #make thing happen in random corner of the map, so in the outer 5 places 
 
 
-        for i in range(len(self.L_s)):
+        #for i in range(len(self.L_s)):
              #self.U_t[i] = (random.randint(*random.choice([(0, 5), (15, 20)])), random.randint(*random.choice([(0, 5), (15, 20)])))
-             self.U_t[i] =( random.randint(0,20), random.randint(0,20))
+         #    self.U_t[i] =( random.randint(0,20), random.randint(0,20))
 
 
-        for i in range(len(self.L_s)):
+        #for i in range(len(self.L_s)):
              #self.L_f[i] = (20 - self.U_t[i][0], 20 - self.U_t[i][1])
-             self.L_f[i] = ( random.randint(0,20), random.randint(0,20))
+         #    self.L_f[i] = ( random.randint(0,20), random.randint(0,20))
         self.c_cont = copy(self.c_U)
         self.has_ended = False
         self.GBS_seen = {}
@@ -274,7 +274,7 @@ class uav_collab(ParallelEnv):
         
 
         observations = {
-            a:  self.U_t[self.agents.index(a)] + self.L_f[self.agents.index(a)]
+            a:  self.U_t[self.agents.index(a)] + (self.c_cont[self.agents.index(a)],)
             for a in self.agents
         }
         return observations, {}
@@ -345,7 +345,7 @@ class uav_collab(ParallelEnv):
         truncations = {a: False for a in self.agents}
         terminations = {a: False for a in self.agents}
         observations = {
-            a: self.U_t[self.agents.index(a)] + self.L_f[self.agents.index(a)]
+            a: self.U_t[self.agents.index(a)] + (self.c_cont[self.agents.index(a)],)
             for a in self.agents
         }
 
@@ -361,8 +361,14 @@ class uav_collab(ParallelEnv):
         j = self.mild_terminator(self.R_G)
         if j:
              terminations = {a: True for a in self.agents}
-             rewards = {a:  25 for a in self.agents}
+             rewards = {a:  100 for a in self.agents}
              return observations, rewards, terminations, truncations, infos
+        
+        if cont_r[0] < 0:
+             terminations = {a: True for a in self.agents}
+             rewards = {a:  -25 for a in self.agents}
+             return observations, rewards, terminations, truncations, infos
+             
 
 
         if self.ts > self.trunc_step:
@@ -374,7 +380,7 @@ class uav_collab(ParallelEnv):
         
         rewards = {}
         for ind in range(len(self.agents)):
-             rewards[self.agents[ind]] = 5*d_dis[ind] - 1#+ 4*cont_r[ind]  -1 # gbs_new[ind] #  pscp -r C:\Users\JackF\Documents\REU\uav_environment\env\ farleyj3@tesla.cs.vcu.edu:/home/farleyj3/rl -.1*(self.dist(self.U_t[ind], self.L_f[ind]))  (-3 * self.c_U[ind]) #self.dist(self.U_t[ind], self.L_s[ind]) #(0 * self.c_U[ind])   
+             rewards[self.agents[ind]] = d_dis[ind] #+ 4*cont_r[ind]  -1 # gbs_new[ind] #  pscp -r C:\Users\JackF\Documents\REU\uav_environment\env\ farleyj3@tesla.cs.vcu.edu:/home/farleyj3/rl -.1*(self.dist(self.U_t[ind], self.L_f[ind]))  (-3 * self.c_U[ind]) #self.dist(self.U_t[ind], self.L_s[ind]) #(0 * self.c_U[ind])   
         self.ts += 1
         print(observations)
         #print(self.U_t)

@@ -45,14 +45,13 @@ def parse_args():
 
 
     #algorithm specific arguments
-    parser.add_argument("--total_episodes", type=int, default=25000,
+    parser.add_argument("--total_episodes", type=int, default=40000,
         help="total episodes of the experiments")
     parser.add_argument("--max_cycles", type=int, default=400,
                         help="maximum number of cycles per episode")
-    
-    parser.add_argument("--total_time", type=int, default=50,
-                        help= "timesteps per episode" )
-    parser.add_argument("--learning-rate", type=float, default=2.5e-4,
+    parser.add_argument("--total_timesteps", type=int, default=256,
+        help="total timesteps of the experiments")
+    parser.add_argument("--learning-rate", type=float, default=2.5e-3,
         help="the learning rate of the optimizer")
     parser.add_argument("--num-envs", type=int, default=1,
         help="the number of parallel game environments")
@@ -68,11 +67,11 @@ def parse_args():
         help="the batch size of sample from the reply memory")
     parser.add_argument("--start_e", type=float, default=1,
         help="the starting epsilon for exploration")
-    parser.add_argument("--end_e", type=float, default=0.02,
+    parser.add_argument("--end_e", type=float, default=0.05,
         help="the ending epsilon for exploration")
     parser.add_argument("--exploration-fraction", type=float, default=0.4,
         help="the fraction of `total-episodes` it takes from start-e to go end-e")
-    parser.add_argument("--learning_starts", type=int, default=1000,
+    parser.add_argument("--learning_starts", type=int, default=2000,
         help="episode to start learning")
     parser.add_argument("--train_frequency", type=int, default=5,
         help="the frequency of training")
@@ -104,8 +103,7 @@ def parse_args():
                         help="Radius of connection from UAV-> UAV")
     parser.add_argument("--grid_size", type=int, default=20,
                         help="length of each grid axis (gris is a square)")
-    parser.add_argument("--total_timesteps", type=int, default=256,
-        help="total timesteps of the experiments")
+
     parser.add_argument("--act_len", type=int, default=5,
         help="length of actions")
     parser.add_argument("--obser", type=int, default=2,
